@@ -126,30 +126,28 @@ class SiteHealthInfo
             ],
             'geoIpDatabaseLastUpdated'       => [
                 'label' => esc_html__('GeoIP Database Last Updated', 'wp-statistics'),
-                'value' => $geoIpProvider->getLastDatabaseFileUpdated(),
+                'value' => $geoIpProvider->getLastDatabaseFileUpdated() ?: esc_html__('Not Set', 'wp-statistics'),
+                'debug' => $geoIpProvider->getLastDatabaseFileUpdated() ?: 'Not Set',
             ],
             'geoIpDatabaseSize'              => [
                 'label' => esc_html__('GeoIP Database Size', 'wp-statistics'),
-                'value' => $geoIpProvider->getDatabaseSize(),
+                'value' => $geoIpProvider->getDatabaseSize() ?? esc_html__('Not Set', 'wp-statistics'),
+                'debug' => $geoIpProvider->isDatabaseExist() ? number_format($geoIpProvider->getDatabaseSize(false) / 1048576, 2) . ' MB': 'Not Set',
             ],
             'geoIpDatabaseType'              => [
                 'label' => esc_html__('GeoIP Database Type', 'wp-statistics'),
-                'value' => $geoIpProvider->getDatabaseType(),
+                'value' => $geoIpProvider->getDatabaseType() ?: esc_html__('Not Set', 'wp-statistics'),
+                'debug' => $geoIpProvider->getDatabaseType() ?: 'Not Set',
             ],
             'geoIpDatabaseValidation'        => [
                 'label' => esc_html__('GeoIP Database Validation', 'wp-statistics'),
                 'value' => is_wp_error($geoIpProviderValidity) ? esc_html__('No', 'wp-statistics') : esc_html__('Yes', 'wp-statistics'),
-                'debug' => is_wp_error($geoIpProviderValidity) ? $geoIpProviderValidity->get_error_message() : 'Yes',
+                'debug' => is_wp_error($geoIpProviderValidity) ? $geoIpProviderValidity->get_error_code() : 'Yes',
             ],
 
             /**
              * Plugin configuration settings.
              */
-            'monitorOnlineVisitors'          => [
-                'label' => esc_html__('Monitor Online Visitors', 'wp-statistics'),
-                'value' => Option::get('useronline') ? __('Enabled', 'wp-statistics') : __('Disabled', 'wp-statistics'),
-                'debug' => Option::get('useronline') ? 'Enabled' : 'Disabled',
-            ],
             'trackLoggedInUserActivity'      => [
                 'label' => esc_html__('Track Logged-In User Activity', 'wp-statistics'),
                 'value' => Option::get('visitors_log') ? __('Enabled', 'wp-statistics') : __('Disabled', 'wp-statistics'),
@@ -264,11 +262,6 @@ class SiteHealthInfo
                 'label' => esc_html__('Excluded URLs', 'wp-statistics'),
                 'value' => Option::get('excluded_urls') ? __('Set', 'wp-statistics') : __('Not Set', 'wp-statistics'),
                 'debug' => Option::get('excluded_urls') ? 'Set' : 'Not Set',
-            ],
-            'matomoReferrerSpamBlacklist'    => [
-                'label' => esc_html__('Matomo Referrer Spam Blacklist', 'wp-statistics'),
-                'value' => Option::get('referrerspam') ? __('Enabled', 'wp-statistics') : __('Disabled', 'wp-statistics'),
-                'debug' => Option::get('referrerspam') ? 'Enabled' : 'Disabled',
             ],
             'logRecordExclusions'            => [
                 'label' => esc_html__('Log Record Exclusions', 'wp-statistics'),

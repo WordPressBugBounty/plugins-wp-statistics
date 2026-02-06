@@ -1,6 +1,7 @@
 <?php
 
 use WP_Statistics\Service\Database\Managers\SchemaMaintainer;
+use WP_Statistics\Service\Database\Migrations\BackgroundProcess\BackgroundProcessFactory;
 
 $schemaCheckResult = SchemaMaintainer::check();
 $databaseStatus    = $schemaCheckResult['status'] ?? null;
@@ -153,3 +154,55 @@ $databaseStatus    = $schemaCheckResult['status'] ?? null;
     </div>
 </div>
 
+<div class="wrap wps-wrap wps-wrap__setting-form">
+    <div class="postbox">
+        <table class="form-table">
+            <tbody>
+                <tr class="wps-settings-box_head">
+                    <th scope="row" colspan="2"><h3><?php esc_html_e('Data Migrations', 'wp-statistics'); ?></h3></th>
+                </tr>
+
+                <?php
+                    $jobs = BackgroundProcessFactory::getAllJobs();
+
+                    $migrations = BackgroundProcessFactory::getAllMigrations();
+
+                    foreach($jobs as $key => $job) {
+                        if (! in_array($key, $migrations, true) || ! class_exists($job)) {
+                            continue;
+                        }
+
+                        $jobInstance = new $job();
+                        $jobInstance->localizeJobTexts();
+
+                        $isActive = $jobInstance->is_active();
+
+                        $label                = $jobInstance->getJobTitle();
+                        $btnLabel             = $jobInstance->getJobButtonTitle();
+                        $requiresConfirmation = $jobInstance->isConfirmationRequired() ? '1' : '0';
+                        ?>
+                         <tr data-id="<?php echo esc_attr("wps_migration_$key"); ?>" class="wps-migration-row">
+                            <th scope="row">
+                                <span class="wps-setting-label"><?php echo esc_html($label) ?></span>
+                            </th>
+                            <td>
+                                <a
+                                    class="button wps-button wps-button--primary wps-mt-0 wps-migration-btn <?php echo !empty($isActive) ? 'disabled' : ''; ?>"
+                                    title="<?php echo esc_html($label); ?>"
+                                    href="<?php echo !empty($isActive) ? '#' : esc_url($jobInstance->getActionUrl(true)); ?>"
+                                    aria-disabled="<?php echo !empty($isActive) ? 'true' : 'false'; ?>"
+                                    data-confirmation="<?php echo esc_attr($requiresConfirmation); ?>"
+                                >
+                                    <?php echo !empty($btnLabel) ? esc_html($btnLabel) : esc_html__('Run Migration', 'wp-statistics'); ?>
+                                </a>
+                                <p class="description"><?php echo esc_html($jobInstance->getJobDescription()); ?></p>
+                            </td>
+                        </tr>
+                        <?php
+                    }
+                ?>
+
+            </tbody>
+        </table>
+    </div>
+</div>

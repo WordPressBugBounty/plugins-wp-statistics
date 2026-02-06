@@ -10,7 +10,7 @@ if (wps_js.isset(wps_js.global, 'request_params', 'page') && wps_js.global.reque
             {
                 button: '#populate-source-channel-submit',
                 result: '#populate-source-channel-result',
-                action: 'wp_statistics_update_source_channel',
+                action: 'wp_statistics_update_source_channel_data',
                 messageKey: 'confirm_update_channel'
             },
             {
@@ -28,7 +28,7 @@ if (wps_js.isset(wps_js.global, 'request_params', 'page') && wps_js.global.reque
             {
                 button: '#re-check-schema-submit-button',
                 result: '#re-check-schema-result',
-                action: 'wp_statistics_re_check_schema'
+                action: 'wp_statistics_recheck_schema'
             }
         ],
 
@@ -127,9 +127,36 @@ if (wps_js.isset(wps_js.global, 'request_params', 'page') && wps_js.global.reque
                 }
             });
         },
+        initMigrationActions: function () {
+            const self = this;
+            $('.wps-migration-btn[data-confirmation]').each(function () {
+                const $link = $(this);
+                const requiresConfirmation = $link.attr('data-confirmation') === '1';
+                if ($link.hasClass('disabled') || $link.attr('aria-disabled') === 'true') {
+                    return;
+                }
+
+                $link.off('click').on('click', function (e) {
+                    e.preventDefault();
+
+                    const href = $link.attr('href');
+
+                    if (requiresConfirmation) {
+                        const confirmationMessage = wps_js._('confirmation') + '\n' + wps_js._('this_action_cannot_be_undone');
+
+                        self.showModal(confirmationMessage, function () {
+                            window.location.href = href;
+                        });
+                    } else {
+                        window.location.href = href;
+                    }
+                });
+            });
+        },
 
         init: function () {
             this.actions.forEach(a => this.initMaintenanceAction(a));
+            this.initMigrationActions();
         }
     };
 

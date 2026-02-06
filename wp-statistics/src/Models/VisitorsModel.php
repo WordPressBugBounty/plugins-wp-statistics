@@ -202,7 +202,8 @@ class VisitorsModel extends BaseModel
             'user_role'         => '',
             'source_channel'    => '',
             'not_null'          => '',
-            'referred_visitors' => false
+            'referred_visitors' => false,
+            'bypass_cache'      => false
         ]);
 
         $filteredArgs = array_filter($args);
@@ -281,6 +282,10 @@ class VisitorsModel extends BaseModel
                 $query
                     ->joinQuery($taxQuery, ['posts.ID', 'tax.object_id'], 'tax');
             }
+        }
+
+        if (!empty($args['bypass_cache'])) {
+            $query->allowCaching(false);
         }
 
         $result = $query->getAll();
@@ -423,6 +428,9 @@ class VisitorsModel extends BaseModel
         return $result ? $result : [];
     }
 
+    /**
+     * @deprecated Use SummaryChartDataProvider instead.
+     */
     public function getVisitorsSummary($args = [])
     {
         $periods = [
@@ -464,6 +472,9 @@ class VisitorsModel extends BaseModel
         return $summary;
     }
 
+    /**
+     * @deprecated Use SummaryChartDataProvider instead.
+     */
     public function getHitsSummary($args = [])
     {
         $periods = [
@@ -505,6 +516,9 @@ class VisitorsModel extends BaseModel
         return $summary;
     }
 
+    /**
+     * @deprecated Use SummaryChartDataProvider instead.
+     */
     public function getVisitorsHitsSummary($args = [])
     {
         $periods = [
@@ -636,7 +650,8 @@ class VisitorsModel extends BaseModel
             'utm_campaign'          => '',
             'source_name'           => '',
             'group_by'              => 'visitor.ID',
-            'decorate'              => true
+            'decorate'              => true,
+            'exclude_ids'           => []
         ]);
 
         // Set default fields
@@ -680,6 +695,7 @@ class VisitorsModel extends BaseModel
             ->where('visitor.location', '=', $args['country'])
             ->where('visitor.source_channel', 'IN', $args['source_channel'])
             ->where('visitor.source_name', 'IN', $args['source_name'])
+            ->where('visitor.ID', 'NOT IN', $args['exclude_ids'])
             ->whereNotNull($args['not_null'])
             ->whereDate($args['date_field'], $args['date'])
             ->perPage($args['page'], $args['per_page'])
