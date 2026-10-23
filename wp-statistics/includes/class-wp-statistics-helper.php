@@ -2041,7 +2041,7 @@ class Helper
      */
     public static function validateHitRequest()
     {
-        $rules = [
+        $isValid = Request::validate([
             'page_uri'     => [
                 'required'        => true,
                 'nullable'        => true,
@@ -2067,18 +2067,7 @@ class Helper
                 'type'     => 'url',
                 'encoding' => 'base64'
             ],
-        ];
-
-        // Check each parameter on its own so the error can name the one that failed.
-        $invalidParam = null;
-        foreach ($rules as $param => $rule) {
-            if (!Request::validate([$param => $rule])) {
-                $invalidParam = $param;
-                break;
-            }
-        }
-
-        $isValid = $invalidParam === null;
+        ]);
 
         if (!$isValid) {
             /**
@@ -2089,8 +2078,7 @@ class Helper
              */
             do_action('wp_statistics_invalid_hit_request', $isValid, IP::getIP());
 
-            /* translators: %s: Name of the request parameter that failed validation. */
-            throw new ErrorException(sprintf(esc_html__('Invalid hit/online request (%s).', 'wp-statistics'), esc_html($invalidParam)));
+            throw new ErrorException(esc_html__('Invalid hit/online request.', 'wp-statistics'));
         }
 
         return true;

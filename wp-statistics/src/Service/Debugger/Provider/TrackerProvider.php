@@ -6,10 +6,7 @@ use WP_Statistics\Components\Assets;
 use WP_Statistics\Components\AssetNameObfuscator;
 use WP_Statistics\Components\RemoteRequest;
 use WP_STATISTICS\Helper;
-use WP_STATISTICS\Hits;
 use WP_STATISTICS\Option;
-use WP_STATISTICS\RestAPI;
-use WP_Statistics\Utils\Signature;
 use WP_Statistics\Service\Debugger\AbstractDebuggerProvider;
 
 /**
@@ -46,13 +43,6 @@ class TrackerProvider extends AbstractDebuggerProvider
     private $args = [];
 
     /**
-     * Details of the last hit endpoint check.
-     *
-     * @var array
-     */
-    private $hitRecordingDetails = [];
-
-    /**
      * Initialize tracker provider with necessary setup
      */
     public function __construct()
@@ -66,106 +56,32 @@ class TrackerProvider extends AbstractDebuggerProvider
     }
 
     /**
-     * Check whether the hit endpoint accepts a visit.
+     * Check if AJAX hit recording is blocked.
      *
-     * Sends a signed test hit with the same parameters tracker.js sends, marked
-     * as a debugger test so it is not recorded. The check passes only when the
-     * endpoint answers with a success status and `"status": true`.
-     *
-     * @return bool|null Null when client-side tracking and its hit endpoint are disabled.
+     * @return bool
      */
     public function checkHitRecording()
     {
-        if (!Option::get('use_cache_plugin')) {
-            return null;
-        }
-
         $adBlocker = Option::get('bypass_ad_blockers', false);
 
         return $adBlocker ? $this->checkAjaxHit() : $this->checkRestHit();
     }
 
     /**
-     * Returns the details of the last hit endpoint check.
+     * Check AJAX endpoint for hit recording
      *
-     * @return array {
-     *     @type string   $url          The endpoint that was called.
-     *     @type int|null $responseCode The HTTP status code, or null when there was no response.
-     *     @type string   $message      The error reported by the endpoint or the HTTP client, if any.
-     * }
-     */
-    public function getHitRecordingDetails()
-    {
-        return $this->hitRecordingDetails;
-    }
-
-    /**
-     * Check AJAX endpoint for hit recording ("Bypass Ad Blockers" enabled).
-     *
-     * @return bool Returns true if a test hit is accepted, false otherwise.
+     * @return bool Returns true if request works, false if blocked or invalid
      */
     private function checkAjaxHit()
     {
-        $params = array_merge($this->getTestHitParams(), [
-            'action' => 'wp_statistics_hit_record',
-        ]);
-
-        return $this->sendTestHit(admin_url('admin-ajax.php'), $params);
-    }
-
-    /**
-     * Check REST API endpoint for hit recording.
-     *
-     * Uses the same URL that tracker.js posts to.
-     *
-     * @return bool Returns true if a test hit is accepted, false otherwise.
-     */
-    private function checkRestHit()
-    {
-        return $this->sendTestHit(get_rest_url(null, RestAPI::$namespace . '/hit'), $this->getTestHitParams());
-    }
-
-    /**
-     * Builds the parameters of a test hit, the same way the frontend builds them for tracker.js.
-     *
-     * @return array
-     */
-    private function getTestHitParams()
-    {
-        $sourceType = 'home';
-        $sourceId   = 0;
-
-        $params = [
-            Hits::$rest_hits_key     => 1,
-            Hits::$debugger_test_key => 1,
-            'source_type'            => $sourceType,
-            'source_id'              => $sourceId,
-            'search_query'           => '',
-            'page_uri'               => base64_encode('/'),
-            'referred'               => '',
-        ];
-
-        if (Helper::isRequestSignatureEnabled()) {
-            $params['signature'] = Signature::generate([$sourceType, $sourceId]);
-        }
-
-        return $params;
-    }
-
-    /**
-     * Sends a test hit and checks that the endpoint accepted it.
-     *
-     * @param string $url
-     * @param array $params
-     * @return bool
-     */
-    private function sendTestHit($url, $params)
-    {
+        $ajax_url      = admin_url('admin-ajax.php');
         $remoteRequest = new RemoteRequest(
-            $url,
+            $ajax_url,
             'POST',
-            [],
-            array_merge($this->args, ['body' => $params])
+            [
+                'action' => 'wp_statistics_hit_record'
+            ],
+            $this->args
         );
 
         $remoteRequest->execute(false, false);
@@ -173,61 +89,38 @@ class TrackerProvider extends AbstractDebuggerProvider
         $response     = $remoteRequest->getResponse();
         $responseCode = $remoteRequest->getResponseCode();
 
-        $this->hitRecordingDetails = [
-            'url'          => $url,
-            'responseCode' => $responseCode ? (int)$responseCode : null,
-            'message'      => '',
-        ];
-
-        if (is_wp_error($response)) {
-            $this->hitRecordingDetails['message'] = $response->get_error_message();
-            return false;
-        }
-
-        // A Cloudflare challenge blocks this server-side request, but real visitors pass it.
         if ($this->isCloudflareChallenge($response) && 403 === $responseCode) {
             return true;
         }
 
-        $body = json_decode((string)$remoteRequest->getResponseBody(), true);
-
-        if (!is_array($body)) {
-            $this->hitRecordingDetails['message'] = __('The endpoint did not return a valid JSON response.', 'wp-statistics');
-            return false;
-        }
-
-        $isAccepted = $responseCode >= 200
-            && $responseCode < 300
-            && isset($body['status'], $body['test'])
-            && true === $body['status']
-            && true === $body['test'];
-
-        if (!$isAccepted) {
-            $this->hitRecordingDetails['message'] = $this->getErrorMessage($body);
-        }
-
-        return $isAccepted;
+        return $remoteRequest->isValidJsonResponse();
     }
 
     /**
-     * Reads the error message from a hit endpoint reply.
+     * Check REST API endpoint for hit recording
      *
-     * Handles both the WP Statistics format (`data`) and the WordPress REST error format (`message`).
-     *
-     * @param array $body
-     * @return string
+     * @return bool Returns true if request works, false if blocked or invalid
      */
-    private function getErrorMessage($body)
+    private function checkRestHit()
     {
-        if (!empty($body['message']) && is_string($body['message'])) {
-            return $body['message'];
+        $rest_url      = site_url('index.php?rest_route=/wp-statistics/v2/hit');
+        $remoteRequest = new RemoteRequest(
+            $rest_url,
+            'POST',
+            [],
+            $this->args
+        );
+
+        $remoteRequest->execute(false, false);
+
+        $response     = $remoteRequest->getResponse();
+        $responseCode = $remoteRequest->getResponseCode();
+
+        if ($this->isCloudflareChallenge($response) && 403 === $responseCode) {
+            return true;
         }
 
-        if (!empty($body['data']) && is_string($body['data'])) {
-            return $body['data'];
-        }
-
-        return '';
+        return $remoteRequest->isValidJsonResponse();
     }
 
     /**
@@ -271,12 +164,11 @@ class TrackerProvider extends AbstractDebuggerProvider
         $fileExists = $this->executeTrackerCheck();
 
         $this->trackerStatus = [
-            'exists'              => $fileExists,
-            'path'                => $this->trackerPath,
-            'frontendStatus'      => $this->checkFrontendTracker(),
-            'cacheStatus'         => $this->getCacheStatus(),
-            'hitRecordingStatus'  => $this->checkHitRecording(),
-            'hitRecordingDetails' => $this->getHitRecordingDetails(),
+            'exists'             => $fileExists,
+            'path'               => $this->trackerPath,
+            'frontendStatus'     => $this->checkFrontendTracker(),
+            'cacheStatus'        => $this->getCacheStatus(),
+            'hitRecordingStatus' => $this->checkHitRecording()
         ];
     }
 

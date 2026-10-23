@@ -28,11 +28,6 @@ class AnalyticsController
             $this->checkSignature();
             Helper::validateHitRequest();
 
-            // A Tracker Debugger test hit is checked like a real visit but not recorded.
-            if (Hits::isDebuggerTestHit()) {
-                wp_send_json(['status' => true, 'test' => true]);
-            }
-
             Hits::record();
             wp_send_json(['status' => true]);
 
